@@ -190,7 +190,7 @@
                     classifier.classify(features);
 
                 const results = prediction.results;
-
+                console.log(MODEL RESULTS:", results);
                 let best = results.reduce((a, b) =>
                     a.value > b.value ? a : b
                 );
