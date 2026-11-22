@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Person Recognition</title>
+</head>
+<body>
+
+    <h1>ESP32 Person Recognition System</h1>
+
+    <video id="camera" width="320" height="240" autoplay playsinline></video>
+
+    <br><br>
+
+    <button onclick="startCamera()">Start Camera</button>
+    <button onclick="stopCamera()">Stop Camera</button>
+
+    <h2>Recognition Result:</h2>
+    <p id="result">Waiting for detection...</p>
+
+    <script>
+        let stream;
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
+
+                document.getElementById("camera").srcObject = stream;
+            } catch (error) {
+                alert("Camera error: " + error.message);
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                document.getElementById("camera").srcObject = null;
+            }
+        }
+    </script>
+
+</body>
+</html>
