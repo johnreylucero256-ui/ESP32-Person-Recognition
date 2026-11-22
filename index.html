@@ -1,44 +1,229 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ESP32 Person Recognition</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            text-align: center;
+            padding: 15px;
+        }
+
+        video {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid black;
+            border-radius: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            margin: 8px;
+            font-size: 16px;
+        }
+
+        #result {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        #confidence {
+            font-size: 18px;
+        }
+    </style>
 </head>
+
 <body>
 
-    <h1>ESP32 Person Recognition System</h1>
+    <h2>ESP32 Person Recognition</h2>
 
-    <video id="camera" width="320" height="240" autoplay playsinline></video>
+    <video id="camera" autoplay playsinline muted></video>
 
-    <br><br>
+    <br>
 
-    <button onclick="startCamera()">Start Camera</button>
-    <button onclick="stopCamera()">Stop Camera</button>
+    <button id="start">Start Camera</button>
+    <button id="stop">Stop Camera</button>
 
-    <h2>Recognition Result:</h2>
-    <p id="result">Waiting for detection...</p>
+    <h3 id="status">Initializing model...</h3>
+
+    <p id="result">Waiting...</p>
+    <p id="confidence"></p>
+
+    <canvas id="canvas"
+        width="96"
+        height="96"
+        style="display:none;">
+    </canvas>
+
+    <script src="edge-impulse-standalone.js"></script>
+    <script src="run-impulse.js"></script>
 
     <script>
-        let stream;
+        const video = document.getElementById("camera");
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const statusText = document.getElementById("status");
+        const resultText = document.getElementById("result");
+        const confidenceText = document.getElementById("confidence");
+
+        let classifier;
+        let cameraStream;
+        let timer;
+        let busy = false;
+
+        const UNKNOWN_THRESHOLD = 0.70;
+
+        async function initializeModel() {
+            try {
+                classifier = new EdgeImpulseClassifier();
+
+                await classifier.init();
+
+                statusText.textContent = "Model Ready";
+
+            } catch (error) {
+                statusText.textContent =
+                    "Model Error: " + error;
+            }
+        }
 
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: true
-                });
+                cameraStream =
+                    await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: "user"
+                        },
+                        audio: false
+                    });
 
-                document.getElementById("camera").srcObject = stream;
+                video.srcObject = cameraStream;
+
+                await video.play();
+
+                statusText.textContent = "Camera Started";
+
+                timer = setInterval(runRecognition, 1000);
+
             } catch (error) {
-                alert("Camera error: " + error.message);
+                statusText.textContent =
+                    "Camera Error: " + error.message;
             }
         }
 
         function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                document.getElementById("camera").srcObject = null;
+            clearInterval(timer);
+
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => {
+                    track.stop();
+                });
             }
+
+            video.srcObject = null;
+
+            resultText.textContent = "Waiting...";
+            confidenceText.textContent = "";
+            statusText.textContent = "Camera Stopped";
         }
+
+        function prepareImage() {
+
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+
+            if (!width || !height) {
+                throw new Error("Camera image not ready");
+            }
+
+            const scale = Math.min(
+                96 / width,
+                96 / height
+            );
+
+            const newWidth = Math.round(width * scale);
+            const newHeight = Math.round(height * scale);
+
+            const x = Math.floor((96 - newWidth) / 2);
+            const y = Math.floor((96 - newHeight) / 2);
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, 96, 96);
+
+            ctx.drawImage(
+                video,
+                0, 0, width, height,
+                x, y, newWidth, newHeight
+            );
+
+            const imageData =
+                ctx.getImageData(0, 0, 96, 96);
+
+            const features = [];
+
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                features.push(imageData.data[i] / 255);
+                features.push(imageData.data[i + 1] / 255);
+                features.push(imageData.data[i + 2] / 255);
+            }
+
+            return features;
+        }
+
+        async function runRecognition() {
+
+            if (!classifier || busy ||
+                video.readyState < 2) {
+                return;
+            }
+
+            busy = true;
+
+            try {
+                const features = prepareImage();
+
+                const prediction =
+                    classifier.classify(features);
+
+                const results = prediction.results;
+
+                let best = results.reduce((a, b) =>
+                    a.value > b.value ? a : b
+                );
+
+                const confidence = best.value;
+                if (confidence < UNKNOWN_THRESHOLD) {
+                    resultText.textContent = "UNKNOWN";
+                } else {
+                    resultText.textContent = best.label;
+                }
+
+                confidenceText.textContent =
+                    "Confidence: " +
+                    (confidence * 100).toFixed(2) + "%";
+
+                statusText.textContent = "Recognition Active";
+
+            } catch (error) {
+                statusText.textContent =
+                    "Recognition Error: " + error.message;
+            }
+
+            busy = false;
+        }
+
+        document.getElementById("start")
+            .addEventListener("click", startCamera);
+
+        document.getElementById("stop")
+            .addEventListener("click", stopCamera);
+
+        initializeModel();
+
     </script>
 
 </body>
