@@ -7317,7 +7317,3 @@ if (Module['preInit']) {
 }
 
 run();
-
-
-
-
