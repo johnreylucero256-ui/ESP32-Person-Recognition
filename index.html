@@ -14,6 +14,10 @@
             background: #f4f4f4;
         }
 
+        h2 {
+            margin-bottom: 15px;
+        }
+
         video {
             width: 100%;
             max-width: 400px;
@@ -41,6 +45,11 @@
             color: white;
         }
 
+        #capture {
+            background: blue;
+            color: white;
+        }
+
         #result {
             font-size: 28px;
             font-weight: bold;
@@ -56,6 +65,10 @@
             display: inline-block;
             margin-top: 10px;
         }
+
+        #status {
+            font-size: 16px;
+        }
     </style>
 </head>
 
@@ -69,6 +82,7 @@
 
     <button id="start">Start Camera</button>
     <button id="stop">Stop Camera</button>
+    <button id="capture">Capture Test Image</button>
 
     <h3 id="status">Initializing model...</h3>
 
@@ -78,8 +92,11 @@
 
     <div id="details"></div>
 
-    <canvas id="canvas" width="96" height="96"
-        style="display:none;"></canvas>
+    <canvas id="canvas"
+        width="96"
+        height="96"
+        style="display:none;">
+    </canvas>
 
     <script src="edge-impulse-standalone.js"></script>
     <script src="run-impulse.js"></script>
@@ -102,12 +119,17 @@
 
         const UNKNOWN_THRESHOLD = 0.70;
 
-        const ALLOWED_LABELS = ["CLARES", "AGUILAN"];
+        const ALLOWED_LABELS = [
+            "CLARES",
+            "AGUILAN"
+        ];
 
         // INITIALIZE MODEL
 
         async function initializeModel() {
+
             try {
+
                 classifier = new EdgeImpulseClassifier();
 
                 await classifier.init();
@@ -115,7 +137,10 @@
                 statusText.textContent = "Model Ready";
 
             } catch (error) {
-                statusText.textContent = "Model Error: " + error.message;
+
+                statusText.textContent =
+                    "Model Error: " + error.message;
+
                 console.error(error);
             }
         }
@@ -123,7 +148,9 @@
         // START CAMERA
 
         async function startCamera() {
+
             try {
+
                 if (!classifier) {
                     statusText.textContent = "Model is not ready.";
                     return;
@@ -135,10 +162,13 @@
 
                 cameraStream =
                     await navigator.mediaDevices.getUserMedia({
+
                         video: {
                             facingMode: "environment"
                         },
+
                         audio: false
+
                     });
 
                 video.srcObject = cameraStream;
@@ -150,7 +180,10 @@
                 timer = setInterval(runRecognition, 1000);
 
             } catch (error) {
-                statusText.textContent = "Camera Error: " + error.message;
+
+                statusText.textContent =
+                    "Camera Error: " + error.message;
+
                 console.error(error);
             }
         }
@@ -158,9 +191,11 @@
         // STOP CAMERA
 
         function stopCamera() {
+
             clearInterval(timer);
 
             if (cameraStream) {
+
                 cameraStream.getTracks().forEach(track => {
                     track.stop();
                 });
@@ -171,7 +206,9 @@
             video.srcObject = null;
 
             resultText.textContent = "Waiting...";
+
             confidenceText.textContent = "";
+
             detailsText.textContent = "";
 
             statusText.textContent = "Camera Stopped";
@@ -188,12 +225,13 @@
                 throw new Error("Camera image not ready");
             }
 
-            // Clear canvas with black padding
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, 96, 96);
 
-            // Preserve original image proportions
-            const scale = Math.min(96 / width, 96 / height);
+            const scale = Math.min(
+                96 / width,
+                96 / height
+            );
 
             const newWidth = width * scale;
             const newHeight = height * scale;
@@ -201,24 +239,27 @@
             const x = (96 - newWidth) / 2;
             const y = (96 - newHeight) / 2;
 
-            // Resize image without cropping
             ctx.drawImage(
                 video,
                 0, 0, width, height,
                 x, y, newWidth, newHeight
             );
 
-            const imageData = ctx.getImageData(0, 0, 96, 96);
+            const imageData =
+                ctx.getImageData(0, 0, 96, 96);
 
             const features = [];
 
-            // Extract RGB pixel values
-            // Keep original values from 0 to 255
-
-            for (let i = 0; i < imageData.data.length; i += 4) {
+            for (
+                let i = 0;
+                i < imageData.data.length;
+                i += 4
+            ) {
 
                 features.push(imageData.data[i]);
+
                 features.push(imageData.data[i + 1]);
+
                 features.push(imageData.data[i + 2]);
 
             }
@@ -230,7 +271,11 @@
 
         function runRecognition() {
 
-            if (!classifier || busy || video.readyState < 2) {
+            if (
+                !classifier ||
+                busy ||
+                video.readyState < 2
+            ) {
                 return;
             }
 
@@ -240,14 +285,17 @@
 
                 const features = prepareImage();
 
-                const prediction = classifier.classify(features);
+                const prediction =
+                    classifier.classify(features);
 
                 const results = prediction.results;
 
                 console.log("MODEL RESULTS:", results);
 
                 if (!results || results.length === 0) {
+
                     throw new Error("No prediction results returned");
+
                 }
 
                 let best = results.reduce((a, b) =>
@@ -270,9 +318,13 @@
                     confidence >= UNKNOWN_THRESHOLD &&
                     ALLOWED_LABELS.includes(predictedLabel)
                 ) {
+
                     resultText.textContent = predictedLabel;
+
                 } else {
+
                     resultText.textContent = "UNKNOWN";
+
                 }
 
                 confidenceText.textContent =
@@ -289,9 +341,52 @@
                 console.error(error);
 
             } finally {
+
                 busy = false;
+
             }
         }
+
+        // CAPTURE TEST IMAGE
+
+        document.getElementById("capture")
+            .addEventListener("click", function() {
+
+                if (!video.videoWidth) {
+
+                    alert("Start the camera first.");
+
+                    return;
+                }
+
+                const testCanvas =
+                    document.createElement("canvas");
+
+                testCanvas.width = video.videoWidth;
+                testCanvas.height = video.videoHeight;
+
+                const testCtx =
+                    testCanvas.getContext("2d");
+
+                testCtx.drawImage(
+                    video,
+                    0,
+                    0,
+                    testCanvas.width,
+                    testCanvas.height
+                );
+
+                const link =
+                    document.createElement("a");
+
+                link.download = "camera-test.png";
+
+                link.href =
+                    testCanvas.toDataURL("image/png");
+
+                link.click();
+
+            });
 
         // BUTTON EVENTS
 
