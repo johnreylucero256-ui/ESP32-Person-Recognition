@@ -128,10 +128,6 @@
 
                 await classifier.init();
 
-                const properties = classifier.getProperties();
-
-                console.log("MODEL PROPERTIES:", properties);
-
                 statusText.textContent = "Model Ready";
 
             } catch (error) {
@@ -212,7 +208,7 @@
             statusText.textContent = "Camera Stopped";
         }
 
-        // PREPARE IMAGE
+        // PREPARE IMAGE - CENTER CROP
 
         function prepareImage() {
 
@@ -220,30 +216,18 @@
             const height = video.videoHeight;
 
             if (!width || !height) {
-
                 throw new Error("Camera image not ready");
-
             }
 
-            const scale = Math.min(
-                96 / width,
-                96 / height
-            );
+            const cropSize = Math.min(width, height);
 
-            const newWidth = Math.round(width * scale);
-            const newHeight = Math.round(height * scale);
-
-            const x = Math.floor((96 - newWidth) / 2);
-            const y = Math.floor((96 - newHeight) / 2);
-
-            ctx.fillStyle = "black";
-
-            ctx.fillRect(0, 0, 96, 96);
+            const startX = (width - cropSize) / 2;
+            const startY = (height - cropSize) / 2;
 
             ctx.drawImage(
                 video,
-                0, 0, width, height,
-                x, y, newWidth, newHeight
+                startX, startY, cropSize, cropSize,
+                0, 0, 96, 96
             );
 
             const imageData =
@@ -309,13 +293,6 @@
 
                 const predictedLabel =
                     String(best.label).trim().toUpperCase();
-
-                console.log("BEST LABEL:", predictedLabel);
-
-                console.log(
-                    "CONFIDENCE:",
-                    confidence
-                );
 
                 // DISPLAY ALL CLASS CONFIDENCES
 
